@@ -40,7 +40,11 @@ export default function CourseCataloguePage() {
         setPagination(data.pagination);
       }
     } catch (err) {
-      setError(err.message || 'Failed to load course catalogue');
+      if (err.status === 401 || err.code === 'UNAUTHENTICATED' || err.message?.includes('token')) {
+        setError('AUTH_REQUIRED');
+      } else {
+        setError(err.message || 'Failed to load course catalogue');
+      }
       setCourses([]);
     } finally {
       setLoading(false);
@@ -157,19 +161,37 @@ export default function CourseCataloguePage() {
         </div>
       )}
 
-      {/* Error State with Retry Button */}
+      {/* Error State or Auth Required Prompt */}
       {!loading && error && (
-        <div className="courses-state-card courses-state-error" role="alert">
-          <h2>Error Loading Catalogue</h2>
-          <p>{error}</p>
-          <button
-            type="button"
-            className="courses-btn courses-btn-secondary"
-            onClick={fetchCatalogCourses}
-          >
-            Retry
-          </button>
-        </div>
+        error === 'AUTH_REQUIRED' ? (
+          <div className="courses-state-card" role="status" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '0.75rem' }} aria-hidden="true">🔒</div>
+            <h2>Sign In to Access Courses</h2>
+            <p style={{ maxWidth: '480px', margin: '0.5rem auto 1.5rem', color: '#64748b' }}>
+              The course catalogue requires an active trainee, trainer, or administrator account. Please log in or register to browse and enroll.
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <Link to="/login" className="courses-btn courses-btn-primary" style={{ textDecoration: 'none' }}>
+                Log In
+              </Link>
+              <Link to="/signup" className="courses-btn courses-btn-secondary" style={{ textDecoration: 'none' }}>
+                Create Account
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="courses-state-card courses-state-error" role="alert">
+            <h2>Error Loading Catalogue</h2>
+            <p>{error}</p>
+            <button
+              type="button"
+              className="courses-btn courses-btn-secondary"
+              onClick={fetchCatalogCourses}
+            >
+              Retry
+            </button>
+          </div>
+        )
       )}
 
       {/* Empty State */}
