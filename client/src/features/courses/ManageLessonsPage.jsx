@@ -9,7 +9,9 @@ import {
   reorderLessons,
   listResources,
   deleteResource,
+  downloadResourceFile,
 } from './coursesApi.js';
+import UiIcon from '../../components/UiIcon.jsx';
 import ResourceUploadModal from './ResourceUploadModal.jsx';
 
 export default function ManageLessonsPage() {
@@ -20,6 +22,9 @@ export default function ManageLessonsPage() {
   const [resources, setResources] = useState([]);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [deletingResourceId, setDeletingResourceId] = useState(null);
+  const [downloadingResourceId, setDownloadingResourceId] = useState(null);
+  const [downloadError, setDownloadError] = useState(null);
+  const [downloadSuccess, setDownloadSuccess] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
@@ -63,8 +68,25 @@ export default function ManageLessonsPage() {
   };
 
   useEffect(() => {
+    setError(null);
+    setSuccessMsg(null);
+    setDownloadError(null);
+    setDownloadSuccess(null);
+    resetForm();
     loadData();
   }, [courseId]);
+
+  useEffect(() => {
+    if (!downloadSuccess) return undefined;
+    const timer = window.setTimeout(() => setDownloadSuccess(null), 5500);
+    return () => window.clearTimeout(timer);
+  }, [downloadSuccess]);
+
+  useEffect(() => {
+    if (!successMsg) return undefined;
+    const timer = window.setTimeout(() => setSuccessMsg(null), 5500);
+    return () => window.clearTimeout(timer);
+  }, [successMsg]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -191,6 +213,23 @@ export default function ManageLessonsPage() {
     }
   };
 
+  // Download resource (authenticated Blob download)
+  const handleDownloadResource = async (resource) => {
+    try {
+      setDownloadingResourceId(resource.id);
+      setDownloadError(null);
+      setDownloadSuccess(null);
+
+      const fallbackFilename = resource.originalFilename || resource.title || 'resource-file';
+      const result = await downloadResourceFile(courseId, resource.id, fallbackFilename);
+      setDownloadSuccess(`Downloaded "${result?.filename || fallbackFilename}" successfully.`);
+    } catch (err) {
+      setDownloadError(err.message || 'Failed to download resource file.');
+    } finally {
+      setDownloadingResourceId(null);
+    }
+  };
+
   // Delete resource
   const handleDeleteResource = async (resourceId) => {
     try {
@@ -220,24 +259,28 @@ export default function ManageLessonsPage() {
   return (
     <main className="courses-page-container">
       {/* Header & Navigation */}
-      <header className="manage-lessons-header">
-        <div className="form-breadcrumbs">
-          <Link to={`/trainer/courses/${courseId}/edit`}>← Back to Course Edit</Link>
-          <span aria-hidden="true"> / </span>
+      <header className="course-form-header manage-lessons-header">
+        <nav className="form-breadcrumbs" aria-label="Curriculum breadcrumb">
           <Link to="/trainer/courses">My Courses</Link>
-        </div>
+          <span aria-hidden="true">/</span>
+          <Link to={`/trainer/courses/${courseId}/edit`}>Back to Course Edit</Link>
+          <span aria-hidden="true">/</span>
+          <span>Manage Lessons</span>
+        </nav>
 
         <div className="header-content-row">
-          <div>
-            <span className="trainer-badge">Curriculum Management</span>
-            <h1>Manage Lessons: {course?.title || 'Course'}</h1>
+          <div className="form-header-copy">
+            <h1>{course?.title || 'Course'} Syllabus</h1>
             <p className="form-header-sub">
-              Add lessons, provide structured instructional content, and arrange the syllabus order.
+              Add lessons, attach study resources, and arrange syllabus order.
             </p>
           </div>
 
           <div className="header-stats-pill">
-            <span>📚 {lessons.length} {lessons.length === 1 ? 'lesson' : 'lessons'} total</span>
+            <span className="ui-inline">
+              <UiIcon name="book-open" size={15} />
+              {lessons.length} {lessons.length === 1 ? 'lesson' : 'lessons'} total
+            </span>
           </div>
         </div>
       </header>
@@ -245,7 +288,9 @@ export default function ManageLessonsPage() {
       {/* Notifications */}
       {error && (
         <div className="form-alert alert-error" role="alert">
-          <span className="alert-icon" aria-hidden="true">⚠️</span>
+          <span className="alert-icon" aria-hidden="true">
+            <UiIcon name="alert-triangle" size={18} />
+          </span>
           <div className="alert-body">
             <strong>Error:</strong> {error}
           </div>
@@ -254,7 +299,9 @@ export default function ManageLessonsPage() {
 
       {successMsg && (
         <div className="form-alert alert-success" role="status">
-          <span className="alert-icon" aria-hidden="true">✓</span>
+          <span className="alert-icon" aria-hidden="true">
+            <UiIcon name="check-circle" size={18} />
+          </span>
           <div className="alert-body">{successMsg}</div>
         </div>
       )}
@@ -286,7 +333,7 @@ export default function ManageLessonsPage() {
                       aria-label={`Move lesson ${idx + 1} up`}
                       title="Move up"
                     >
-                      ▲
+                      <UiIcon name="chevron-up" size={14} />
                     </button>
                     <button
                       type="button"
@@ -296,7 +343,7 @@ export default function ManageLessonsPage() {
                       aria-label={`Move lesson ${idx + 1} down`}
                       title="Move down"
                     >
-                      ▼
+                      <UiIcon name="chevron-down" size={14} />
                     </button>
                   </div>
                 </div>
@@ -305,8 +352,9 @@ export default function ManageLessonsPage() {
                   <div className="lesson-title-row">
                     <h3 className="lesson-item-title">{lesson.title}</h3>
                     {lesson.estimatedDurationMinutes && (
-                      <span className="lesson-duration-badge">
-                        ⏱ {lesson.estimatedDurationMinutes} mins
+                      <span className="lesson-duration-badge ui-inline">
+                        <UiIcon name="clock" size={13} />
+                        {lesson.estimatedDurationMinutes} mins
                       </span>
                     )}
                   </div>
@@ -323,20 +371,22 @@ export default function ManageLessonsPage() {
                 <div className="lesson-item-actions">
                   <button
                     type="button"
-                    className="btn btn-sm btn-secondary"
+                    className="btn btn-sm btn-secondary ui-inline"
                     onClick={() => handleStartEdit(lesson)}
                     aria-label={`Edit ${lesson.title}`}
                   >
-                    ✏ Edit
+                    <UiIcon name="edit" size={14} />
+                    Edit
                   </button>
                   <Link
                     to={`/courses/${courseId}/lessons/${lesson.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="btn btn-sm btn-secondary"
+                    className="btn btn-sm btn-secondary ui-inline"
                     title="View in Lesson Viewer"
                   >
-                    Preview ↗
+                    Preview
+                    <UiIcon name="external-link" size={13} />
                   </Link>
                   <button
                     type="button"
@@ -484,6 +534,40 @@ export default function ManageLessonsPage() {
           </button>
         </div>
 
+        {downloadError && (
+          <div className="form-alert alert-error" role="alert">
+            <span className="alert-icon" aria-hidden="true">
+              <UiIcon name="alert-triangle" size={18} />
+            </span>
+            <div className="alert-body">{downloadError}</div>
+            <button
+              type="button"
+              className="form-alert-close"
+              aria-label="Dismiss download error"
+              onClick={() => setDownloadError(null)}
+            >
+              <UiIcon name="x" size={15} />
+            </button>
+          </div>
+        )}
+
+        {downloadSuccess && (
+          <div className="form-alert alert-success" role="status">
+            <span className="alert-icon" aria-hidden="true">
+              <UiIcon name="check" size={18} />
+            </span>
+            <div className="alert-body">{downloadSuccess}</div>
+            <button
+              type="button"
+              className="form-alert-close"
+              aria-label="Dismiss download confirmation"
+              onClick={() => setDownloadSuccess(null)}
+            >
+              <UiIcon name="x" size={15} />
+            </button>
+          </div>
+        )}
+
         {resources.length === 0 ? (
           <div className="courses-empty-state" role="region" aria-labelledby="empty-res-heading">
             <h3 id="empty-res-heading">No resources uploaded yet</h3>
@@ -525,18 +609,20 @@ export default function ManageLessonsPage() {
                         href={res.externalUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="btn btn-sm btn-secondary"
+                        className="btn btn-sm btn-secondary ui-inline"
                       >
-                        Visit Link ↗
+                        Visit Link
+                        <UiIcon name="external-link" size={13} />
                       </a>
                     ) : (
-                      <a
-                        href={`/api/v1/courses/${courseId}/resources/${res.id}/download`}
-                        download
+                      <button
+                        type="button"
                         className="btn btn-sm btn-secondary"
+                        disabled={downloadingResourceId === res.id}
+                        onClick={() => handleDownloadResource(res)}
                       >
-                        Download
-                      </a>
+                        {downloadingResourceId === res.id ? 'Downloading...' : 'Download'}
+                      </button>
                     )}
                     <button
                       type="button"

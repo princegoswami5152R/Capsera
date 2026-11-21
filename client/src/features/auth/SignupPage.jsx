@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from './AuthContext.jsx';
+import { CapseraCubeLogo } from '../admin/AdminLayout.jsx';
+import UiIcon from '../../components/UiIcon.jsx';
 
 const PASSWORD_REGEX_LETTER = /[a-zA-Z]/;
 const PASSWORD_REGEX_NUMBER = /[0-9]/;
@@ -20,6 +22,7 @@ export default function SignupPage() {
     fullName: '',
     email: '',
     password: '',
+    confirmPassword: '',
     role: 'TRAINEE',
   });
   const [fieldErrors, setFieldErrors] = useState({});
@@ -41,6 +44,11 @@ export default function SignupPage() {
     if (!form.email.trim()) errors.email = 'Email is required.';
     const pwErr = validatePassword(form.password);
     if (pwErr) errors.password = pwErr;
+    if (!form.confirmPassword) {
+      errors.confirmPassword = 'Please confirm your password.';
+    } else if (form.password !== form.confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match.';
+    }
     if (!['TRAINEE', 'TRAINER'].includes(form.role)) errors.role = 'Please select a valid role.';
     return errors;
   }
@@ -65,7 +73,7 @@ export default function SignupPage() {
       });
 
       // Clear password from state immediately after submission
-      setForm((prev) => ({ ...prev, password: '' }));
+      setForm((prev) => ({ ...prev, password: '', confirmPassword: '' }));
       setSuccess(true);
     } catch (err) {
       const code = err.code || '';
@@ -87,7 +95,9 @@ export default function SignupPage() {
     return (
       <main className="auth-centered-page">
         <div className="auth-card">
-          <div className="auth-success-icon" aria-hidden="true">✅</div>
+          <div className="auth-success-icon" aria-hidden="true">
+            <UiIcon name="check-circle" size={40} />
+          </div>
           <h1 className="auth-card__title">Account Created!</h1>
           <div className="auth-pending-notice" role="status">
             <strong>Your account is pending admin approval.</strong>
@@ -109,8 +119,14 @@ export default function SignupPage() {
   return (
     <main className="auth-centered-page">
       <div className="auth-card">
+        <div className="auth-brand-header">
+          <span className="auth-brand-mark" aria-hidden="true">
+            <CapseraCubeLogo />
+          </span>
+          <span className="auth-brand-name">CAPSERA LMS</span>
+        </div>
         <h1 className="auth-card__title">Create Account</h1>
-        <p className="auth-card__subtitle">Join CAPSERA to get started</p>
+        <p className="auth-card__subtitle">Register as a Trainee or Trainer to join CAPSERA</p>
 
         {serverError && (
           <div className="auth-alert" role="alert">
@@ -191,6 +207,30 @@ export default function SignupPage() {
             ) : (
               <span id="password-hint" className="auth-field-hint">
                 At least 8 characters with a letter and a number.
+              </span>
+            )}
+          </div>
+
+          <div className="auth-field">
+            <label htmlFor="confirmPassword" className="auth-label">
+              Confirm Password
+            </label>
+            <input
+              id="confirmPassword"
+              name="confirmPassword"
+              type="password"
+              className={`auth-input${fieldErrors.confirmPassword ? ' auth-input--error' : ''}`}
+              value={form.confirmPassword}
+              onChange={handleChange}
+              autoComplete="new-password"
+              disabled={submitting}
+              aria-describedby={fieldErrors.confirmPassword ? 'confirmPassword-error' : undefined}
+              aria-invalid={!!fieldErrors.confirmPassword}
+              maxLength={72}
+            />
+            {fieldErrors.confirmPassword && (
+              <span id="confirmPassword-error" className="auth-field-error" role="alert">
+                {fieldErrors.confirmPassword}
               </span>
             )}
           </div>

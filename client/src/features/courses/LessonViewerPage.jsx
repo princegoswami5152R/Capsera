@@ -9,6 +9,7 @@ import {
   downloadResourceFile,
 } from './coursesApi.js';
 import { listAssessmentsByCourse } from '../assessments/assessmentsApi.js';
+import UiIcon from '../../components/UiIcon.jsx';
 
 export default function LessonViewerPage() {
   const { courseId, lessonId } = useParams();
@@ -21,6 +22,7 @@ export default function LessonViewerPage() {
   const [assessments, setAssessments] = useState([]);
   const [downloadingId, setDownloadingId] = useState(null);
   const [downloadError, setDownloadError] = useState(null);
+  const [downloadSuccess, setDownloadSuccess] = useState(null);
   const [enrollment, setEnrollment] = useState(null);
   const [completedLessonIds, setCompletedLessonIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
@@ -106,11 +108,19 @@ export default function LessonViewerPage() {
     return null;
   }, [lessons, currentLessonIndex]);
 
-  // Reset mark feedback on lesson switch
+  // Reset mark & download feedback on lesson switch
   useEffect(() => {
     setMarkSuccess(false);
     setMarkError(null);
+    setDownloadError(null);
+    setDownloadSuccess(null);
   }, [lessonId]);
+
+  useEffect(() => {
+    if (!downloadSuccess) return undefined;
+    const timer = window.setTimeout(() => setDownloadSuccess(null), 5500);
+    return () => window.clearTimeout(timer);
+  }, [downloadSuccess]);
 
   // Handle Mark Complete
   const handleMarkComplete = async () => {
@@ -160,11 +170,11 @@ export default function LessonViewerPage() {
     try {
       setDownloadingId(resource.id);
       setDownloadError(null);
-      await downloadResourceFile(
-        courseId,
-        resource.id,
-        resource.originalFilename || `${resource.title}.pdf`,
-      );
+      setDownloadSuccess(null);
+
+      const fallbackFilename = resource.originalFilename || resource.title || 'resource-file';
+      const result = await downloadResourceFile(courseId, resource.id, fallbackFilename);
+      setDownloadSuccess(`Downloaded "${result?.filename || fallbackFilename}" successfully.`);
     } catch (err) {
       setDownloadError(err.message || 'Failed to download file.');
     } finally {
@@ -268,12 +278,13 @@ export default function LessonViewerPage() {
       <div className="viewer-mobile-bar">
         <button
           type="button"
-          className="btn btn-secondary btn-sm"
+          className="btn btn-secondary btn-sm ui-inline"
           onClick={() => setSidebarOpen(!sidebarOpen)}
           aria-expanded={sidebarOpen}
           aria-controls="curriculum-sidebar"
         >
-          {sidebarOpen ? '✕ Close Curriculum' : '☰ Course Lessons'}
+          <UiIcon name={sidebarOpen ? 'x' : 'menu'} size={15} />
+          {sidebarOpen ? 'Close Curriculum' : 'Course Lessons'}
         </button>
         <span className="mobile-lesson-indicator">
           Lesson {currentLessonIndex + 1} of {lessons.length}
@@ -311,7 +322,7 @@ export default function LessonViewerPage() {
                     aria-current={isActive ? 'page' : undefined}
                   >
                     <span className="lesson-badge-num">
-                      {isDone ? '✓' : idx + 1}
+                      {isDone ? <UiIcon name="check" size={14} /> : idx + 1}
                     </span>
                     <span className="lesson-title-text">{lesson.title}</span>
                     {lesson.estimatedDurationMinutes && (
@@ -328,29 +339,11 @@ export default function LessonViewerPage() {
 
         {/* Course Assessments Navigation (Member 3 Coordination) */}
         {assessments.length > 0 && (
-          <div
-            className="sidebar-assessments-section"
-            style={{
-              marginTop: '1.25rem',
-              borderTop: '1px solid #e2e8f0',
-              paddingTop: '1rem',
-              paddingLeft: '0.75rem',
-              paddingRight: '0.75rem',
-            }}
-          >
-            <h4
-              style={{
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                color: '#64748b',
-                marginBottom: '0.5rem',
-              }}
-            >
+          <div className="sidebar-assessments-section">
+            <h4 className="sidebar-section-heading">
               Assessments & Quizzes ({assessments.length})
             </h4>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <ul className="sidebar-assessment-list">
               {assessments.map((assessment, idx) => (
                 <li key={assessment.id}>
                   <Link
@@ -359,38 +352,14 @@ export default function LessonViewerPage() {
                         ? `/courses/${courseId}/assessments/${assessment.id}/player`
                         : `/courses/${courseId}/assessments/manage`
                     }
-                    className="sidebar-lesson-btn"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      textDecoration: 'none',
-                      padding: '8px 10px',
-                      borderRadius: '6px',
-                      fontSize: '0.8125rem',
-                      color: '#1e293b',
-                    }}
+                    className="sidebar-lesson-btn sidebar-assessment-link"
                   >
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                      <span className="lesson-badge-num" style={{ minWidth: '24px' }}>Q{idx + 1}</span>
-                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {assessment.title}
-                      </span>
+                    <span className="sidebar-assessment-title-wrap">
+                      <span className="lesson-badge-num sidebar-quiz-badge">Q{idx + 1}</span>
+                      <span className="lesson-title-text">{assessment.title}</span>
                     </span>
                     {assessment.isRequired && (
-                      <span
-                        style={{
-                          fontSize: '0.625rem',
-                          background: '#fef3c7',
-                          color: '#92400e',
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          fontWeight: 700,
-                          flexShrink: 0,
-                        }}
-                      >
-                        Required
-                      </span>
+                      <span className="sidebar-required-pill">Required</span>
                     )}
                   </Link>
                 </li>
@@ -400,44 +369,30 @@ export default function LessonViewerPage() {
         )}
 
         {/* Course Feedback Link (Member 3 Coordination) */}
-        <div
-          className="sidebar-feedback-section"
-          style={{
-            marginTop: '1rem',
-            borderTop: '1px solid #e2e8f0',
-            paddingTop: '0.75rem',
-            paddingLeft: '0.75rem',
-            paddingRight: '0.75rem',
-          }}
-        >
+        <div className="sidebar-feedback-section">
           <Link
             to={`/courses/${courseId}/feedback`}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '0.8125rem',
-              color: '#0284c7',
-              textDecoration: 'none',
-              fontWeight: 500,
-            }}
+            className="sidebar-feedback-link"
           >
-            ★ Course Reviews & Feedback →
+            <UiIcon name="star" size={14} filled />
+            Course Reviews & Feedback →
           </Link>
         </div>
       </aside>
 
       {/* Main Lesson Stage */}
       <main className="viewer-main-content" tabIndex="-1">
-        {/* Full Course Completion Celebration Banner */}
+        {/* Full Course Completion Banner */}
         {bannerType === 'COURSE_COMPLETED' && (
           <div className="completion-banner" role="status" aria-live="polite">
-            <div className="banner-icon" aria-hidden="true">🎉</div>
+            <div className="banner-icon" aria-hidden="true">
+              <UiIcon name="award" size={30} />
+            </div>
             <div className="banner-text">
               <h3>Congratulations! Course Completed!</h3>
               <p>You have completed all lessons and satisfied all requirements for <strong>{course?.title}</strong>!</p>
             </div>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <div className="banner-actions">
               <Link to="/my-learning" className="btn btn-sm btn-primary">
                 View My Learning
               </Link>
@@ -450,29 +405,18 @@ export default function LessonViewerPage() {
 
         {/* Lessons Completed but Required Assessments Pending Banner */}
         {bannerType === 'ASSESSMENTS_PENDING' && (
-          <div
-            className="completion-banner"
-            role="status"
-            aria-live="polite"
-            style={{
-              background: '#fef3c7',
-              borderColor: '#f59e0b',
-              color: '#92400e',
-            }}
-          >
-            <div className="banner-icon" aria-hidden="true">📝</div>
+          <div className="completion-banner completion-banner--pending" role="status" aria-live="polite">
+            <div className="banner-icon" aria-hidden="true">
+              <UiIcon name="book-open" size={28} />
+            </div>
             <div className="banner-text">
-              <h3 style={{ color: '#92400e' }}>All Lessons Completed!</h3>
-              <p style={{ color: '#78350f' }}>
+              <h3>All Lessons Completed!</h3>
+              <p>
                 Great work! To complete this course and earn your certificate, please complete the required course assessment(s).
               </p>
             </div>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <Link
-                to={`/courses/${courseId}`}
-                className="btn btn-sm btn-primary"
-                style={{ background: '#b45309', borderColor: '#b45309', color: '#ffffff' }}
-              >
+            <div className="banner-actions">
+              <Link to={`/courses/${courseId}`} className="btn btn-sm btn-primary">
                 Go to Assessments →
               </Link>
             </div>
@@ -498,8 +442,9 @@ export default function LessonViewerPage() {
             </div>
 
             {currentLesson.estimatedDurationMinutes && (
-              <span className="duration-pill">
-                ⏱ {currentLesson.estimatedDurationMinutes} mins estimated
+              <span className="duration-pill ui-inline">
+                <UiIcon name="clock" size={14} />
+                {currentLesson.estimatedDurationMinutes} mins estimated
               </span>
             )}
           </div>
@@ -526,8 +471,34 @@ export default function LessonViewerPage() {
             <h2 id="resources-heading">Study Materials & Attached Resources</h2>
             {downloadError && (
               <div className="form-alert alert-error" role="alert">
-                <span className="alert-icon" aria-hidden="true">⚠️</span>
+                <span className="alert-icon" aria-hidden="true">
+                  <UiIcon name="alert-triangle" size={18} />
+                </span>
                 <div className="alert-body">{downloadError}</div>
+                <button
+                  type="button"
+                  className="form-alert-close"
+                  aria-label="Dismiss download error"
+                  onClick={() => setDownloadError(null)}
+                >
+                  <UiIcon name="x" size={15} />
+                </button>
+              </div>
+            )}
+            {downloadSuccess && (
+              <div className="form-alert alert-success" role="status">
+                <span className="alert-icon" aria-hidden="true">
+                  <UiIcon name="check" size={18} />
+                </span>
+                <div className="alert-body">{downloadSuccess}</div>
+                <button
+                  type="button"
+                  className="form-alert-close"
+                  aria-label="Dismiss download confirmation"
+                  onClick={() => setDownloadSuccess(null)}
+                >
+                  <UiIcon name="x" size={15} />
+                </button>
               </div>
             )}
             <ul className="resource-list">
@@ -537,18 +508,20 @@ export default function LessonViewerPage() {
                     !res.lessonId || String(res.lessonId) === String(currentLesson.id),
                 )
                 .map((resource) => {
-                  const icon =
+                  const iconName =
                     resource.resourceType === 'VIDEO'
-                      ? '🎥'
+                      ? 'video'
                       : resource.resourceType === 'PRESENTATION'
-                      ? '📊'
+                      ? 'bar-chart'
                       : resource.resourceType === 'LINK'
-                      ? '🔗'
-                      : '📄';
+                      ? 'link'
+                      : 'file-text';
 
                   return (
                     <li key={resource.id} className="resource-item">
-                      <span className="resource-icon" aria-hidden="true">{icon}</span>
+                      <span className="resource-icon" aria-hidden="true">
+                        <UiIcon name={iconName} size={20} />
+                      </span>
                       <div className="resource-info">
                         <span className="resource-title">{resource.title}</span>
                         <div className="resource-meta-tags">
@@ -571,9 +544,10 @@ export default function LessonViewerPage() {
                           href={resource.externalUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="btn btn-sm btn-secondary"
+                          className="btn btn-sm btn-secondary ui-inline"
                         >
-                          Visit Link ↗
+                          Visit Link
+                          <UiIcon name="external-link" size={13} />
                         </a>
                       ) : (
                         <button
@@ -599,16 +573,21 @@ export default function LessonViewerPage() {
               <div className="trainee-action-group">
                 <button
                   type="button"
-                  className={`btn ${isCurrentCompleted || markSuccess ? 'btn-success' : 'btn-primary'} btn-lg`}
+                  className={`btn ${isCurrentCompleted || markSuccess ? 'btn-success' : 'btn-primary'} btn-lg ui-inline`}
                   onClick={handleMarkComplete}
                   disabled={marking || isCurrentCompleted || markSuccess}
                   aria-live="polite"
                 >
-                  {marking
-                    ? 'Updating Progress...'
-                    : isCurrentCompleted || markSuccess
-                    ? '✓ Lesson Completed'
-                    : 'Mark as Complete'}
+                  {marking ? (
+                    'Updating Progress...'
+                  ) : isCurrentCompleted || markSuccess ? (
+                    <>
+                      <UiIcon name="check" size={16} />
+                      Lesson Completed
+                    </>
+                  ) : (
+                    'Mark as Complete'
+                  )}
                 </button>
 
                 {markError && (

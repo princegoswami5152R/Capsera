@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { listCourses } from './coursesApi.js';
+import UiIcon from '../../components/UiIcon.jsx';
 
 const COURSE_LEVELS = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'];
 
@@ -82,7 +83,7 @@ export default function CourseCataloguePage() {
   return (
     <main className="courses-page-container">
       <header className="courses-catalogue-header">
-        <span className="courses-badge-pill">Public Directory</span>
+        <span className="courses-badge-pill">Course Directory</span>
         <h1>Course Catalogue</h1>
         <p className="courses-subtitle">
           Explore organizational capacity-building courses, syllabus modules, and learning tracks.
@@ -198,7 +199,7 @@ export default function CourseCataloguePage() {
       {!loading && !error && courses.length === 0 && (
         <div className="courses-state-card courses-state-empty" role="status">
           <div className="courses-empty-icon" aria-hidden="true">
-            📚
+            <UiIcon name="book-open" size={34} />
           </div>
           <h2>No Courses Found</h2>
           <p>We couldn't find any courses matching your filter criteria.</p>
@@ -255,8 +256,9 @@ export default function CourseCataloguePage() {
                   </p>
 
                   <div className="courses-card-footer">
-                    <span className="courses-card-lessons">
-                      📖 {course.lessonCount ?? 0} {course.lessonCount === 1 ? 'lesson' : 'lessons'}
+                    <span className="courses-card-lessons ui-inline">
+                      <UiIcon name="book-open" size={15} />
+                      {course.lessonCount ?? 0} {course.lessonCount === 1 ? 'lesson' : 'lessons'}
                     </span>
                     <Link
                       to={`/courses/${course.id}`}
